@@ -203,3 +203,86 @@ export function internalTransfer(contract: Contract, senderId: string, receiverI
     //return the previous token object that was transferred.
     return token
 }
+
+//transfers the NFT to the receiver_id (internal method and can't be called directly via CLI).
+export function internalBurn(contract: Contract, senderId: string, tokenId: string, approvalId: number, memo: string): Token {
+    //get the token object by passing in the token_id
+    let token = contract.tokensById.get(tokenId) as Token;
+    if (token == null) {
+        near.panic("no token found");
+    }
+
+    //if the sender doesn't equal the owner, we check if the sender is in the approval list
+    if (senderId != token.owner_id) {
+        //if the token's approved account IDs doesn't contain the sender, we panic
+        if (!token.approved_account_ids.hasOwnProperty(senderId)) {
+            near.panic("Unauthorized");
+        }
+
+        // If they included an approval_id, check if the sender's actual approval_id is the same as the one included
+        if (approvalId != null) {
+            //get the actual approval ID
+            let actualApprovalId = token.approved_account_ids[senderId];
+            //if the sender isn't in the map, we panic
+            if (actualApprovalId == null) {
+                near.panic("Sender is not approved account");
+            }
+
+            //make sure that the actual approval ID is the same as the one provided
+            assert(actualApprovalId == approvalId, `The actual approval_id ${actualApprovalId} is different from the given approval_id ${approvalId}`);
+        }
+    }
+
+    //we remove the token from it's current owner's set
+    internalRemoveTokenFromOwner(contract, token.owner_id, tokenId);
+
+    //we remove the token from known tokensById
+    contract.tokensById.remove(tokenId);
+
+    //if there was some memo attached, we log it.
+    if (memo != null) {
+        near.log(`Memo: ${memo}`);
+    }
+
+    // Default the authorized ID to be None for the logs.
+    let authorizedId;
+
+    //if the approval ID was provided, set the authorized ID equal to the sender
+    if (approvalId != null) {
+        authorizedId = senderId
+    }
+
+    interface NftBurnLog {
+        owner_id: string,
+        authorized_id?: string,
+        token_ids: string[],
+        memo?: string
+    }
+    // Construct the burn log as per the events standard.
+    let nftBurnLog = {
+        // Standard name ("nep171").
+        standard: NFT_STANDARD_NAME,
+        // Version of the standard ("nft-1.0.0").
+        version: NFT_METADATA_SPEC,
+        // The data related with the event stored in a vector.
+        event: "nft_burn",
+        data: [
+            {
+                //Who burned the token
+                owner_id: senderId,
+                // The optional authorized account ID to burn the token on behalf of the old owner.
+                authorized_id: authorizedId,
+                // A vector containing the token IDs as strings.
+                token_ids: [tokenId],
+                // An optional memo to include.
+                memo,
+            }
+        ]
+    }
+
+    // Log the serialized json.
+    near.log(`EVENT_JSON:${JSON.stringify(nftBurnLog)}`);
+
+    //return the previous token object that was transferred.
+    return token
+}

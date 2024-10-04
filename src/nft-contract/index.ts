@@ -3,7 +3,7 @@ import { NearContract, NearBindgen, near, call, view, LookupMap, UnorderedMap, V
 import { NFTContractMetadata, Token, TokenMetadata, internalNftMetadata } from './metadata';
 import { internalMint } from './mint';
 import { internalNftTokens, internalSupplyForOwner, internalTokensForOwner, internalTotalSupply } from './enumeration';
-import { internalNftToken, internalNftTransfer, internalNftTransferCall, internalResolveTransfer } from './nft_core';
+import { internalNftToken, internalNftTransfer, internalNftTransferCall, internalResolveTransfer, internalNftBurn } from './nft_core';
 import { internalNftApprove, internalNftIsApproved, internalNftRevoke, internalNftRevokeAll } from './approval';
 import { internalNftPayout, internalNftTransferPayout } from './royalty';
 
@@ -24,15 +24,15 @@ export class Contract extends NearContract {
     /*
         initialization function (can only be called once).
         this initializes the contract with metadata that was passed in and
-        the owner_id. 
+        the owner_id.
     */
     constructor({
-        owner_id, 
+        owner_id,
         metadata = {
             spec: "nft-1.0.0",
             name: "NFT Tutorial Contract",
             symbol: "GOTEAM"
-        } 
+        }
     }) {
         super()
         this.owner_id = owner_id;
@@ -55,6 +55,14 @@ export class Contract extends NearContract {
     }
 
     /*
+    BURN
+    */
+    @call
+    nft_burn({ token_id, approval_id, memo }) {
+        return internalNftBurn({ contract: this, tokenId: token_id, approvalId: approval_id, memo: memo });
+    }
+
+    /*
         CORE
     */
     @view
@@ -64,7 +72,7 @@ export class Contract extends NearContract {
     }
 
     @call
-    //implementation of the nft_transfer method. This transfers the NFT from the current owner to the receiver. 
+    //implementation of the nft_transfer method. This transfers the NFT from the current owner to the receiver.
     nft_transfer({ receiver_id, token_id, approval_id, memo }) {
         return internalNftTransfer({ contract: this, receiverId: receiver_id, tokenId: token_id, approvalId: approval_id, memo: memo });
     }
@@ -107,7 +115,7 @@ export class Contract extends NearContract {
     }
 
     @call
-    //transfers the token to the receiver ID and returns the payout object that should be payed given the passed in balance. 
+    //transfers the token to the receiver ID and returns the payout object that should be payed given the passed in balance.
     nft_transfer_payout({ receiver_id, token_id, approval_id, memo, balance, max_len_payout }) {
         return internalNftTransferPayout({ contract: this, receiverId: receiver_id, tokenId: token_id, approvalId: approval_id, memo: memo, balance: balance, maxLenPayout: max_len_payout });
     }

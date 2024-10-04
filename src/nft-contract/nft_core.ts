@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { assert, bytes, near } from "near-sdk-js";
 import { Contract, NFT_METADATA_SPEC, NFT_STANDARD_NAME } from ".";
-import { assertOneYocto, internalAddTokenToOwner, internalRemoveTokenFromOwner, internalTransfer, refundDeposit, refundApprovedAccountIds } from "./internal";
+import { assertOneYocto, internalAddTokenToOwner, internalRemoveTokenFromOwner, internalTransfer, internalBurn, refundDeposit, refundApprovedAccountIds } from "./internal";
 import { JsonToken, Token, TokenMetadata } from "./metadata";
 
 const GAS_FOR_RESOLVE_TRANSFER = 40_000_000_000_000;
@@ -47,7 +47,7 @@ export function internalNftTransfer({
     contract: Contract,
     receiverId: string,
     tokenId: string,
-    approvalId: number
+    approvalId: number,
     memo: string
 }) {
     //assert that the user attached exactly 1 yoctoNEAR. This is for security and so that the user will be redirected to the NEAR wallet.
@@ -71,6 +71,40 @@ export function internalNftTransfer({
         previousToken.approved_account_ids
     );
 }
+
+//implementation of the nft_transfer method. This transfers the NFT from the current owner to the receiver.
+export function internalNftBurn({
+    contract,
+    tokenId,
+    approvalId,
+    memo
+}:{
+    contract: Contract,
+    tokenId: string,
+    approvalId: number,
+    memo: string
+}) {
+    //assert that the user attached exactly 1 yoctoNEAR. This is for security and so that the user will be redirected to the NEAR wallet.
+    assertOneYocto();
+    //get the sender to transfer the token from the sender to the receiver
+    let senderId = near.predecessorAccountId();
+
+    //call the internal transfer method and get back the previous token so we can refund the approved account IDs
+    let previousToken = internalBurn(
+        contract,
+        senderId,
+        tokenId,
+        approvalId,
+        memo
+    );
+
+    //we refund the owner for releasing the storage used up by the approved account IDs
+    refundApprovedAccountIds(
+        previousToken.owner_id,
+        previousToken.approved_account_ids
+    );
+}
+
 
 //implementation of the transfer call method. This will transfer the NFT and call a method on the receiver_id contract
 export function internalNftTransferCall({
